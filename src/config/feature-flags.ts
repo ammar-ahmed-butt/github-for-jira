@@ -27,7 +27,8 @@ export enum BooleanFlags {
 	USE_OUTBOUND_PROXY_FOR_OUATH_ROUTER = "use-outbound-proxy-for-oauth-router",
 	SERVICE_ASSOCIATIONS_FOR_DEPLOYMENTS = "service-associations-for-deployments",
 	ISSUEKEY_REGEX_CHAR_LIMIT = "issuekey-regex-char-limit",
-	USE_SHARED_PR_TRANSFORM = "use-shared-pr-transform"
+	USE_SHARED_PR_TRANSFORM = "use-shared-pr-transform",
+	NEW_JWT_VALIDATION = "new-jwt-validation"
 }
 
 export enum StringFlags {
@@ -66,8 +67,9 @@ const getLaunchDarklyValue = async <T = boolean | string | number>(flag: Boolean
 };
 
 // Include jiraHost for any FF that needs to be rolled out in stages
-export const booleanFlag = async (flag: BooleanFlags, defaultValue: boolean, key?: string): Promise<boolean> =>
-	await getLaunchDarklyValue(flag, defaultValue, key);
+export const booleanFlag = async (flag: BooleanFlags, key?: string): Promise<boolean> =>
+	// Always use the default value as false to prevent issues
+	await getLaunchDarklyValue(flag, false, key);
 
 export const stringFlag = async <T = string>(flag: StringFlags, defaultValue: T, key?: string): Promise<T> =>
 	await getLaunchDarklyValue<T>(flag, defaultValue, key);
@@ -91,7 +93,5 @@ export const isBlocked = async (installationId: number, logger: Logger): Promise
 };
 
 export const shouldTagBackfillRequests = async (): Promise<boolean> => {
-	return booleanFlag(BooleanFlags.TAG_BACKFILL_REQUESTS, false);
+	return booleanFlag(BooleanFlags.TAG_BACKFILL_REQUESTS);
 };
-
-export const GHE_SERVER_GLOBAL = false;

@@ -7,12 +7,11 @@ import { statsd }  from "config/statsd";
 import { metricError } from "config/metric-names";
 import { AppInstallation, FailedAppInstallation } from "config/interfaces";
 import { createAppClient } from "utils/get-github-client-config";
-import { booleanFlag, BooleanFlags, GHE_SERVER_GLOBAL } from "config/feature-flags";
+import { booleanFlag, BooleanFlags } from "config/feature-flags";
 import { GitHubServerApp } from "models/github-server-app";
 import { sendAnalytics } from "utils/analytics-client";
 import { AnalyticsEventTypes, AnalyticsScreenEventsEnum } from "interfaces/common";
 import { getCloudOrServerFromGitHubAppId } from "utils/get-cloud-or-server";
-import { saveConfiguredAppProperties } from "utils/save-app-properties";
 
 interface FailedConnection {
 	id: number;
@@ -125,10 +124,6 @@ const renderJiraCloud = async (res: Response, req: Request): Promise<void> => {
 	const { installations, successfulConnections, failedConnections } = await getConnectionsAndInstallations(subscriptions, req);
 	const hasConnections = !!installations.total;
 
-	if (!hasConnections) {
-		await saveConfiguredAppProperties(jiraHost, undefined, undefined, req, "false");
-	}
-
 	res.render("jira-configuration.hbs", {
 		host: jiraHost,
 		successfulConnections,
@@ -189,10 +184,6 @@ const renderJiraCloudAndEnterpriseServer = async (res: Response, req: Request): 
 
 	const hasConnections =  !!(installations.total || gheServers?.length);
 
-	if (!hasConnections) {
-		await saveConfiguredAppProperties(jiraHost, undefined, undefined, req, "false");
-	}
-
 	res.render("jira-configuration-new.hbs", {
 		host: jiraHost,
 		gheServers: groupedGheServers,
@@ -241,7 +232,7 @@ export const JiraGet = async (
 
 		req.log.debug("Received jira configuration page request");
 
-		if (await booleanFlag(BooleanFlags.GHE_SERVER, GHE_SERVER_GLOBAL, jiraHost)) {
+		if (await booleanFlag(BooleanFlags.GHE_SERVER, jiraHost)) {
 			await renderJiraCloudAndEnterpriseServer(res, req);
 		} else {
 			await renderJiraCloud(res, req);

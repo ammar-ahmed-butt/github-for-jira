@@ -142,7 +142,7 @@ export const updateJobStatus = async (
  * @param err the error thrown by Octokit.
  */
 export const isRetryableWithSmallerRequest = async (err): Promise<boolean> => {
-	if (await booleanFlag(BooleanFlags.RETRY_ALL_ERRORS, false)) {
+	if (await booleanFlag(BooleanFlags.RETRY_ALL_ERRORS)) {
 		return err?.isRetryable || false;
 	}
 	if (err?.errors) {
@@ -331,7 +331,6 @@ export const handleBackfillError = async (err,
 	logger: Logger,
 	scheduleNextTask: (delayMs: number) => void): Promise<void> => {
 
-	logger.info({ err, data, nextTask }, "joshkay temp logging - handleBackfillError");
 	const isRateLimitError = err instanceof RateLimitingError || Number(err?.headers?.["x-ratelimit-remaining"]) == 0;
 
 	if (isRateLimitError) {

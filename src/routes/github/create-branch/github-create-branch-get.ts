@@ -11,9 +11,9 @@ const MAX_REPOS_RETURNED = 20;
 export const GithubCreateBranchGet = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
 	const {
 		githubToken,
-		gitHubAppConfig
+		gitHubAppConfig,
+		jiraHost
 	} = res.locals;
-	const jiraHost = req.query?.jiraHost as string;
 
 	if (!githubToken) {
 		req.log.warn(Errors.MISSING_GITHUB_TOKEN);
@@ -88,7 +88,7 @@ const getReposBySubscriptions = async (subscriptions: Subscription[], logger: Lo
 			const response = await gitHubInstallationClient.getRepositoriesPage(MAX_REPOS_RETURNED, undefined, "UPDATED_AT");
 			return response.viewer.repositories.edges;
 		} catch (err) {
-			logger.error("Create branch - Failed to fetch repos for installation");
+			logger.error({ err }, "Create branch - Failed to fetch repos for installation");
 			throw err;
 		}
 	});

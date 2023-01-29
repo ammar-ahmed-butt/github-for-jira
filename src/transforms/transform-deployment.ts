@@ -37,11 +37,12 @@ const getLastSuccessfulDeployCommitSha = async (
 			// Find the first successful one
 			const lastSuccessful = listDeploymentStatusResponse.data.find(deployment => deployment.state === "success");
 			if (lastSuccessful) {
+
 				return deployment.sha;
 			}
 		}
 	} catch (e) {
-		logger?.error(`Failed to get deployment statuses.`);
+		logger?.debug(`Failed to get deployment statuses.`);
 	}
 
 	// If there's no successful deployment on the list of deployments that GitHub returned us (max. 100) then we'll return the last one from the array, even if it's a failed one.

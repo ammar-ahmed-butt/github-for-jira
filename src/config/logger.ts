@@ -2,6 +2,7 @@ import Logger, { createLogger, LogLevel, Serializers, Stream } from "bunyan";
 import { isArray, isString, merge, omit, mapKeys } from "lodash";
 import { SafeRawLogStream, UnsafeRawLogStream } from "utils/logger-utils";
 import { createHashWithSharedSecret } from "utils/encryption";
+import { canLogHeader } from "utils/http-headers";
 
 const REPO_URL_REGEX = /^(\/api\/v3)?\/repos\/([^/]+)\/([^/]+)\/(.*)$/;
 
@@ -110,8 +111,6 @@ const censorUrl = (url) => {
 	return url;
 };
 
-const SENSITIVE_HEADERS_TO_CENSOR = ["authorization", "set-cookie", "cookie"];
-
 const headersSerializer = (headers) => {
 	if (!headers) {
 		return headers;
@@ -119,15 +118,16 @@ const headersSerializer = (headers) => {
 
 	const ret = mapKeys(headers, (_, key) => key.toLowerCase());
 
-	SENSITIVE_HEADERS_TO_CENSOR.forEach(headerName => {
-		if (ret[headerName]) {
-			ret[headerName] = "CENSORED";
+	for (const key in ret) {
+		if (!canLogHeader(key)) {
+			ret[key] = "CENSORED";
 		}
-	});
+	}
+
 	return ret;
 };
 
-const responseConfigSerializer = (config) => {
+const axiosConfigSerializer = (config) => {
 	if (!config) {
 		return config;
 	}
@@ -140,7 +140,7 @@ const responseConfigSerializer = (config) => {
 	};
 };
 
-const responseSerializer = (res) => {
+const responseSerializer = (res, includeConfig = true, includeRequest = true) => {
 	if (!res) {
 		return res;
 	}
@@ -148,8 +148,8 @@ const responseSerializer = (res) => {
 		status: res.status,
 		statusText: res.statusText,
 		headers: headersSerializer(res.headers),
-		config: responseConfigSerializer(res.config),
-		request: requestSerializer(res.request)
+		...((includeConfig && res.config) ? { config: axiosConfigSerializer(res.config) } : { }),
+		...((includeRequest && res.request) ? { request: requestSerializer(res.request) } : { })
 	};
 };
 
@@ -162,6 +162,12 @@ const requestSerializer = (req) => req && ({
 	remotePort: req.socket?.remotePort
 });
 
+const graphQlErrorsSerializer = (errors: Array<any>) => (
+	{
+		errors: errors.map(error => errorSerializer(error))
+	}
+);
+
 const errorSerializer = (err) => {
 	if (!err) {
 		return err;
@@ -173,13 +179,22 @@ const errorSerializer = (err) => {
 		err = { message: err };
 	}
 
-	return {
+	const res = {
 		...err,
-		message: err?.message,
-		config: responseConfigSerializer(err.config),
-		response: responseSerializer(err.response),
-		request: requestSerializer(err.request)
+		... (err.cause && err.cause !== err ? { cause: errorSerializer(err.cause) } : { }),
+		message: err.message,
+		config: axiosConfigSerializer(err.config),
+		response: responseSerializer(err.response, false, !err.request),
+		request: requestSerializer(err.request),
+		... (err.errors && Array.isArray(err.errors) ? graphQlErrorsSerializer(err.errors) : {})
 	};
+
+	delete res.toJSON;
+	if (err.response && err.request) {
+		delete res.config;
+	}
+
+	return res;
 };
 
 const taskSerializer = (task) => {
@@ -238,7 +253,7 @@ export const getLogger = (name: string, options: LoggerOptions = {}): Logger => 
 		serializers: {
 			err: errorSerializer,
 			error: errorSerializer,
-			config: responseConfigSerializer,
+			config: axiosConfigSerializer,
 			res: responseSerializer,
 			response: responseSerializer,
 			req: requestSerializer,

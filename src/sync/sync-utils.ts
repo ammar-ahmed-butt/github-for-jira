@@ -25,7 +25,7 @@ export const findOrStartSync = async (
 		syncWarning: null
 	});
 
-	logger.info({ subscription, syncType }, "Starting sync");
+	logger.info({ subscriptionId: subscription.id, syncType }, "Starting sync");
 
 	await resetTargetedTasks(subscription, syncType, targetTasks);
 
@@ -42,6 +42,9 @@ export const findOrStartSync = async (
 
 	const gitHubAppConfig = await getGitHubAppConfig(subscription, logger);
 
+	const mainCommitsFromDate = await getCommitSinceDate(jiraHost, NumberFlags.SYNC_MAIN_COMMIT_TIME_LIMIT, commitsFromDate?.toISOString());
+	const branchCommitsFromDate = await getCommitSinceDate(jiraHost, NumberFlags.SYNC_BRANCH_COMMIT_TIME_LIMIT, commitsFromDate?.toISOString());
+
 	// Start sync
 	await sqsQueues.backfill.sendMessage({
 		installationId,
@@ -49,7 +52,8 @@ export const findOrStartSync = async (
 		isInitialSync,
 		syncType,
 		startTime: fullSyncStartTime,
-		commitsFromDate: commitsFromDate?.toISOString(),
+		commitsFromDate: mainCommitsFromDate?.toISOString(),
+		branchCommitsFromDate: branchCommitsFromDate?.toISOString(),
 		targetTasks,
 		gitHubAppConfig
 	}, 0, logger);
@@ -106,8 +110,8 @@ export const getCommitSinceDate = async (jiraHost: string, flagName: NumberFlags
 		return new Date(commitsFromDate);
 	}
 	const timeCutoffMsecs = await numberFlag(flagName, NaN, jiraHost);
-	if (!timeCutoffMsecs) {
-		return;
+	if (!timeCutoffMsecs || timeCutoffMsecs === -1) {
+		return undefined;
 	}
 	return new Date(Date.now() - timeCutoffMsecs);
 };

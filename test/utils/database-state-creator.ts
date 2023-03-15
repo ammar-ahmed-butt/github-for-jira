@@ -18,11 +18,13 @@ export class DatabaseStateCreator {
 	private withActiveRepoSyncStateFlag: boolean;
 	private pendingForPrs: boolean;
 	private pendingForBranches: boolean;
+	private failedForBranches: boolean;
 	private pendingForCommits: boolean;
 	private pendingForBuilds: boolean;
 	private pendingForDeployments: boolean;
 
 	private buildsCustomCursor: string | undefined;
+	private prsCustomCursor: string | undefined;
 
 	public static GITHUB_INSTALLATION_ID = 111222;
 
@@ -61,6 +63,11 @@ export class DatabaseStateCreator {
 		return this;
 	}
 
+	public withPrsCustomCursor(cursor: string) {
+		this.prsCustomCursor = cursor;
+		return this;
+	}
+
 	public repoSyncStatePendingForDeployments() {
 		this.pendingForDeployments = true;
 		return this;
@@ -68,6 +75,11 @@ export class DatabaseStateCreator {
 
 	public repoSyncStatePendingForBranches() {
 		this.pendingForBranches = true;
+		return this;
+	}
+
+	public repoSyncStateFailedForBranches() {
+		this.failedForBranches = true;
 		return this;
 	}
 
@@ -108,12 +120,15 @@ export class DatabaseStateCreator {
 			repoPushedAt: new Date(),
 			repoUpdatedAt: new Date(),
 			repoCreatedAt: new Date(),
-			branchStatus: this.pendingForBranches ? "pending" : "complete",
+			branchStatus: this.pendingForBranches ? "pending" : (
+				this.failedForBranches ? "failed" : "complete"
+			),
 			commitStatus: this.pendingForCommits ? "pending" : "complete",
 			pullStatus: this.pendingForPrs ? "pending" : "complete",
 			buildStatus: this.pendingForBuilds ? "pending" : "complete",
 			deploymentStatus: this.pendingForDeployments ? "pending" : "complete",
 			... (this.buildsCustomCursor ? { buildCursor: this.buildsCustomCursor } : { }),
+			... (this.prsCustomCursor ? { pullCursor: this.prsCustomCursor } : { }),
 			updatedAt: new Date(),
 			createdAt: new Date()
 		}) : undefined;

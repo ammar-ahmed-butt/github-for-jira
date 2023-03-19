@@ -1,0 +1,39 @@
+name: github-for-jira
+
+id: 'ari:cloud:compass:fe16f236-8ecb-4445-8586-5ebd155a2533:component/639c4a85-a7f7-47da-af17-094b43ea6ccc/bbc61510-cce0-430f-9c55-55e2896beddc'
+
+description: Connect your code with your project management in Jira
+
+configVersion: 1
+
+typeId: APPLICATION
+
+ownerId: 'ari:cloud:teams::team/364becde-3535-499b-8d1e-adf8431d1584'
+
+fields: {}
+
+links:
+
+  - name: GitHub For Jira
+
+    type: REPOSITORY
+
+    url: 'https://github.com/Ammar-Knowledge/github-for-jira'
+
+  - name: GitHub Flow
+
+    type: PROJECT
+
+    url: 'https://ammar-ahmed-butt.atlassian.net/browse/GF'
+
+relationships: {}
+
+labels:
+
+  - 'language:typescript'
+
+  - 'source:github'
+
+# Learn more about formatting compass.yml:
+
+# https://go.atlassian.com/compass-yml-format

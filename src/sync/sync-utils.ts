@@ -8,15 +8,16 @@ import { GITHUB_CLOUD_API_BASEURL, GITHUB_CLOUD_BASEURL } from "~/src/github/cli
 import { GitHubAppConfig } from "~/src/sqs/sqs.types";
 import { SyncType, TaskType } from "~/src/sync/sync.types";
 import { sqsQueues } from "../sqs/queues";
+import { backfillFromDateToBucket } from "config/metric-helpers";
 
 export const findOrStartSync = async (
 	subscription: Subscription,
 	logger: Logger,
 	syncType?: SyncType,
 	commitsFromDate?: Date,
-	targetTasks?: TaskType[]
+	targetTasks?: TaskType[],
+	metricTags?: Record<string, string>
 ): Promise<void> => {
-	let fullSyncStartTime;
 	const { gitHubInstallationId: installationId, jiraHost } = subscription;
 	await subscription.update({
 		syncStatus: SyncStatus.PENDING,
@@ -29,7 +30,6 @@ export const findOrStartSync = async (
 	await resetTargetedTasks(subscription, syncType, targetTasks);
 
 	if (syncType === "full" && !targetTasks?.length) {
-		fullSyncStartTime = new Date().toISOString();
 		await subscription.update({
 			totalNumberOfRepos: null,
 			repositoryCursor: null,
@@ -38,6 +38,9 @@ export const findOrStartSync = async (
 		// Remove all state as we're starting anew
 		await RepoSyncState.deleteFromSubscription(subscription);
 	}
+
+	// reset failedCode for Partial or targetted syncs
+	await resetFailedCode(subscription, syncType, targetTasks);
 
 	const gitHubAppConfig = await getGitHubAppConfig(subscription, logger);
 
@@ -49,11 +52,16 @@ export const findOrStartSync = async (
 		installationId,
 		jiraHost,
 		syncType,
-		startTime: fullSyncStartTime,
+		startTime: new Date().toISOString(),
 		commitsFromDate: mainCommitsFromDate?.toISOString(),
 		branchCommitsFromDate: branchCommitsFromDate?.toISOString(),
 		targetTasks,
-		gitHubAppConfig
+		gitHubAppConfig,
+		metricTags: {
+			...metricTags,
+			backfillFrom: backfillFromDateToBucket(mainCommitsFromDate),
+			syncType: syncType ? String(syncType) : "empty"
+		}
 	}, 0, logger);
 };
 
@@ -102,6 +110,18 @@ const resetTargetedTasks = async (subscription: Subscription, syncType?: SyncTyp
 		await subscription.update(updateSubscriptionTasks);
 	}
 
+};
+
+const resetFailedCode = async (subscription: Subscription, syncType?: SyncType, targetTasks?: TaskType[]) => {
+	// a full sync without target tasks has reposyncstates removed so dont update.
+	if (syncType === "full" && !targetTasks?.length) {
+		return;
+	}
+	await RepoSyncState.update({ failedCode: null }, {
+		where: {
+			subscriptionId: subscription.id
+		}
+	});
 };
 
 export const getCommitSinceDate = async (jiraHost: string, flagName: NumberFlags.SYNC_MAIN_COMMIT_TIME_LIMIT | NumberFlags.SYNC_BRANCH_COMMIT_TIME_LIMIT, commitsFromDate?: string): Promise<Date | undefined> => {

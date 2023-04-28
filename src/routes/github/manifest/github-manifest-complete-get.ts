@@ -9,13 +9,16 @@ import { GheConnectConfigTempStorage } from "utils/ghe-connect-config-temp-stora
 export const GithubManifestCompleteGet = async (req: Request, res: Response) => {
 	const uuid = req.params.uuid;
 
-	const connectConfig = await new GheConnectConfigTempStorage().get(uuid, res.locals.installation.id);
+	const tempStorage = new GheConnectConfigTempStorage();
+	const connectConfig = await tempStorage.get(uuid, res.locals.installation.id);
 	if (!connectConfig) {
 		req.log.warn("No connect config found");
 		res.sendStatus(404);
 		return;
 	}
 
+	// Should never happen because temp storage uses random UUIDs, the chances of collision is super low. Keeping
+	// just in case, though
 	if (await GitHubServerApp.findForUuid(uuid)) {
 		req.log.error({ connectConfigUuid: uuid }, "There's already GitHubServerApp with such UUID, halting");
 		res.sendStatus(400);
@@ -41,12 +44,15 @@ export const GithubManifestCompleteGet = async (req: Request, res: Response) => 
 			appId: gitHubAppConfig.id,
 			gitHubAppName: gitHubAppConfig.name,
 			gitHubBaseUrl: gheHost,
+			// TODO: copy other values from the connectConfig
 			gitHubClientId: gitHubAppConfig.client_id,
 			gitHubClientSecret: gitHubAppConfig.client_secret,
 			webhookSecret: gitHubAppConfig.webhook_secret,
 			privateKey:  gitHubAppConfig.pem,
 			installationId: res.locals.installation.id
 		}, res.locals.jiraHost);
+
+		await tempStorage.delete(uuid, res.locals.installation.id);
 
 		sendAnalytics(AnalyticsEventTypes.TrackEvent, {
 			name: AnalyticsTrackEventsEnum.AutoCreateGitHubServerAppTrackEventName,

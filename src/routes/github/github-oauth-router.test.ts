@@ -170,7 +170,7 @@ describe("github-oauth-router", () => {
 				log: getLogger("test"),
 				query: { resetGithubToken: true, secondParams: true },
 				originalUrl: "https://randomsite.com",
-				session: { githubToken: "github-token", githubRefreshToken: "refresh-token" }
+				session: { githubToken: "abc123", githubRefreshToken: "refresh-token" }
 			};
 			const res = {
 				locals: {
@@ -193,3 +193,4 @@ describe("github-oauth-router", () => {
 		});
 	});
 });
+

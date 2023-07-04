@@ -41,7 +41,6 @@ const ASSOCIATE_REPOSITORY_ENDPOINT = `${envVars.APP_URL}/jira/workspaces/reposi
 export const getGenericContainerUrls = async (): Promise<string[] | null> => {
 	if (await booleanFlag(BooleanFlags.ENABLE_GENERIC_CONTAINERS)) {
 		return [
-			CREATE_BRANCH_ENDPOINT,
 			SEARCH_CONNECTED_WORKSPACES_ENDPOINT,
 			SEARCH_REPOSITORIES_ENDPOINT,
 			ASSOCIATE_REPOSITORY_ENDPOINT
@@ -193,6 +192,15 @@ const	modules = {
 				value: "GitHub Edit App"
 			},
 			url: "/jira/connect/enterprise/app/{ac.uuid}",
+			location: "none",
+			conditions: adminCondition
+		},
+		{
+			key: "spa-index-page",
+			name: {
+				value: "GitHub for Jira SPA Index Page"
+			},
+			url: "/spa",
 			location: "none",
 			conditions: adminCondition
 		}

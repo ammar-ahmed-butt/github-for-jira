@@ -17,6 +17,7 @@ import OAuthManager from "../../services/oauth-manager";
 import analyticsClient from "../../analytics";
 import { AxiosError } from "axios";
 import { ErrorObjType, modifyError } from "../../utils/modifyError";
+import { popup, reportError } from "../../utils";
 
 type GitHubOptionType = {
 	selectedOption: number;
@@ -213,10 +214,13 @@ const ConfigSteps = () => {
 				setLoaderForLogin(true);
 				try {
 					analyticsClient.sendUIEvent({ actionSubject: "startOAuthAuthorisation", action: "clicked", attributes: { type: "cloud" } });
-					await OAuthManager.authenticateInGitHub();
+					await OAuthManager.authenticateInGitHub(() => {
+						setLoaderForLogin(false);
+					});
 				} catch (e) {
 					setLoaderForLogin(false);
 					setError(modifyError(e as AxiosError, {}, { onClearGitHubToken: clearGitHubToken }));
+					reportError(e);
 				}
 				break;
 			}
@@ -263,7 +267,8 @@ const ConfigSteps = () => {
 	};
 
 	const logout = () => {
-		window.open("https://github.com/logout", "_blank", "popup,width=400,height=600");
+
+		popup("https://github.com/logout", { width: 400, height: 600 });
 		clearGitHubToken();
 		analyticsClient.sendUIEvent({ actionSubject: "switchGitHubAccount", action: "clicked" });
 	};
@@ -281,6 +286,7 @@ const ConfigSteps = () => {
 			}
 		} catch (e) {
 			analyticsClient.sendTrackEvent({ actionSubject: "organisationConnectResponse", action: "fail", attributes: { mode } });
+			reportError(e);
 		} finally {
 			setLoaderForOrgConnection(false);
 		}
@@ -305,6 +311,7 @@ const ConfigSteps = () => {
 		} catch (e) {
 			setError(modifyError(e as AxiosError, { }, { onClearGitHubToken: clearGitHubToken }));
 			analyticsClient.sendTrackEvent({ actionSubject: "installNewOrgInGithubResponse", action: "fail" });
+			reportError(e);
 		}
 	};
 

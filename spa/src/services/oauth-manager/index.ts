@@ -1,5 +1,6 @@
 import Api from "../../api";
 import { AxiosError } from "axios";
+import { popup, reportError } from "../../utils";
 
 const STATE_KEY = "oauth-localStorage-state";
 
@@ -15,17 +16,25 @@ async function checkValidity(): Promise<boolean | AxiosError> {
 		email = res.data.email;
 
 		return res.status === 200;
-	}catch (e) {
-		console.error(e, "Failed to check validity");
+	} catch (e) {
+		reportError(e);
 		return e as AxiosError;
 	}
 }
 
-async function authenticateInGitHub(): Promise<void> {
+async function authenticateInGitHub(onWinClosed: () => void): Promise<void> {
 	const res = await Api.auth.generateOAuthUrl();
 	if (res.data.redirectUrl && res.data.state) {
 		window.localStorage.setItem(STATE_KEY, res.data.state);
-		window.open(res.data.redirectUrl, "_blank", "popup,width=400,height=600");
+		const win = popup(res.data.redirectUrl, { width: 400, height: 600 });
+		if (win) {
+			const winCloseCheckHandler = setInterval(() => {
+				if (win.closed) {
+					clearInterval(winCloseCheckHandler);
+					try { onWinClosed(); } catch (e) { reportError(e); }
+				}
+			}, 1000);
+		}
 	}
 }
 
@@ -45,6 +54,7 @@ async function finishOAuthFlow(code: string, state: string): Promise<boolean | A
 			return false;
 		}
 	} catch (e) {
+		reportError(e);
 		return e as AxiosError;
 	}
 }

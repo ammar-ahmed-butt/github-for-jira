@@ -162,10 +162,6 @@ const renderJiraCloudAndEnterpriseServer = async (res: Response, req: Request): 
 	const hasConnections =  !!(installations.total || gheServers?.length);
 
 	const useNewSPAExperience = await booleanFlag(BooleanFlags.USE_NEW_5KU_SPA_EXPERIENCE, jiraHost);
-	if (useNewSPAExperience && !hasConnections) {
-		res.redirect("/spa?from=homepage");
-		return;
-	}
 
 	res.render("jira-configuration.hbs", {
 		host: jiraHost,
@@ -186,7 +182,8 @@ const renderJiraCloudAndEnterpriseServer = async (res: Response, req: Request): 
 	const completeConnections = allSuccessfulConnections.filter(connection => connection.syncStatus === "FINISHED");
 
 	sendAnalytics(jiraHost, AnalyticsEventTypes.ScreenEvent, {
-		name: AnalyticsScreenEventsEnum.GitHubConfigScreenEventName,
+		name: AnalyticsScreenEventsEnum.GitHubConfigScreenEventName
+	}, {
 		jiraHost,
 		pageExperience: useNewSPAExperience ? "spa" : "",
 		connectedOrgCountCloudCount: successfulCloudConnections.length,

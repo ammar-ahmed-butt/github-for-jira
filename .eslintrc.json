@@ -103,12 +103,10 @@
 			"src/models/**",
 			"src/rest/**",
 			"src/routes/**",
-			"src/services/**",
 			"src/sqs/**",
 			"src/sync/**",
 			"src/transforms/**",
-			"src/util/**",
-			"src/worker/**"
+			"src/util/**"
 		],
 		"rules": {
 			// To be removed later

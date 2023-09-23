@@ -15,7 +15,7 @@ import { capitalize, truncate } from "lodash";
 import Logger from "bunyan";
 import { DependabotAlertResponseItem } from "../github/client/github-client.types";
 
-export const mapVulnIdentifiers = (identifiers: GitHubVulnIdentifier[], references: GitHubVulnReference[]): JiraVulnerabilityIdentifier[] => {
+export const mapVulnIdentifiers = (identifiers: GitHubVulnIdentifier[], references: GitHubVulnReference[], alertUrl: string): JiraVulnerabilityIdentifier[] => {
 	const mappedIdentifiers: JiraVulnerabilityIdentifier[] = [];
 
 	identifiers.forEach((identifier) => {
@@ -23,7 +23,7 @@ export const mapVulnIdentifiers = (identifiers: GitHubVulnIdentifier[], referenc
 
 		const mappedIdentifier: JiraVulnerabilityIdentifier = {
 			displayName: identifier.value,
-			url: foundUrl ? foundUrl : identifier.value
+			url: foundUrl ? foundUrl : alertUrl
 		};
 
 		mappedIdentifiers.push(mappedIdentifier);
@@ -39,7 +39,7 @@ export const transformDependabotAlert = async (context: WebhookContext<Dependabo
 
 	const handleUnmappedState = (state: string) => context.log.info(`Received unmapped state from dependabot_alert webhook: ${state}`);
 	const handleUnmappedSeverity = (severity: string | null) => context.log.info(`Received unmapped severity from dependabot_alert webhook: ${severity ?? "Missing Serverity"}`);
-	const identifiers = mapVulnIdentifiers(alert.security_advisory.identifiers, alert.security_advisory.references);
+	const identifiers = mapVulnIdentifiers(alert.security_advisory.identifiers, alert.security_advisory.references, alert.html_url);
 
 	return {
 		vulnerabilities: [{
@@ -48,7 +48,7 @@ export const transformDependabotAlert = async (context: WebhookContext<Dependabo
 			updateSequenceNumber: Date.now(),
 			containerId: transformRepositoryId(repository.id, githubClientConfig.baseUrl),
 			// display name cannot exceed 255 characters
-			displayName: truncate(alert.security_advisory.summary, { length: 254 }),
+			displayName: truncate(alert.security_advisory.summary || `Dependabot alert #${alert.number}`, { length: 254 }),
 			description: getDependabotScanningVulnDescription(alert, identifiers, context.log),
 			url: alert.html_url,
 			type: "sca",
@@ -60,7 +60,7 @@ export const transformDependabotAlert = async (context: WebhookContext<Dependabo
 			identifiers,
 			status: transformGitHubStateToJiraStatus(alert.state, handleUnmappedState),
 			additionalInfo: {
-				content: alert.dependency.manifest_path
+				content: truncate(alert.dependency.manifest_path, { length: 254 })
 			}
 		}]
 	};

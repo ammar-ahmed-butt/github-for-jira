@@ -30,12 +30,32 @@ export const getDependabotAlertTask = async (
 	const fromDate = messagePayload.commitsFromDate ? new Date(messagePayload.commitsFromDate) : undefined;
 	const smartCursor = new PageSizeAwareCounterCursor(cursor).scale(perPage);
 
-	const { data: dependabotAlerts } = await gitHubClient.getDependabotAlerts(repository.owner.login, repository.name, {
-		per_page: smartCursor.perPage,
-		page: smartCursor.pageNo,
-		sort: "created",
-		direction: SortDirection.DES
-	});
+	let dependabotAlerts: DependabotAlertResponseItem[];
+	try {
+		const response = await gitHubClient.getDependabotAlerts(repository.owner.login, repository.name, {
+			per_page: smartCursor.perPage,
+			page: smartCursor.pageNo,
+			sort: "created",
+			direction: SortDirection.DES
+		});
+		dependabotAlerts = response.data;
+	} catch (err) {
+		if (err.cause?.response?.status == 403 && err.cause?.response?.data?.message?.includes("Dependabot alerts are disabled for this repository")) {
+			logger.info({ err, githubInstallationId: gitHubClient.githubInstallationId }, "Dependabot alerts disabled, so marking backfill task complete");
+			return {
+				edges: [],
+				jiraPayload: undefined
+			};
+		} else if (err.cause?.response?.status == 403 && err.cause?.response?.data?.message?.includes("Dependabot alerts are not available for archived repositories")) {
+			logger.info({ err, githubInstallationId: gitHubClient.githubInstallationId }, "Archived repository, backfill task complete");
+			return {
+				edges: [],
+				jiraPayload: undefined
+			};
+		}
+		logger.error({ err, reason: err.cause?.response?.data }, "Dependabot alert backfill failed");
+		throw err;
+	}
 
 	if (!dependabotAlerts?.length) {
 		logger.info({ processingTime: Date.now() - startTime, jiraPayloadLength: 0 }, "Backfill task complete");
@@ -91,15 +111,15 @@ const transformDependabotAlerts = async (
 	const handleUnmappedSeverity = (severity: string | null) => logger.info(`Received unmapped severity from dependabot_alerts sync: ${severity ?? "Missing Severity"}`);
 
 	const vulnerabilities = alerts.map((alert) => {
-		const identifiers = mapVulnIdentifiers(alert.security_advisory.identifiers, alert.security_advisory.references);
+		const identifiers = mapVulnIdentifiers(alert.security_advisory.identifiers, alert.security_advisory.references, alert.html_url);
 		return {
 			schemaVersion: "1.0",
 			id: `d-${transformRepositoryId(repository.id, gitHubClientConfig.baseUrl)}-${alert.number}`,
 			updateSequenceNumber: Date.now(),
 			containerId: transformRepositoryId(repository.id, gitHubClientConfig.baseUrl),
 			// display name cannot exceed 255 characters
-			displayName: truncate(alert.security_advisory.summary, { length: 254 }),
-			description: getDependabotScanningVulnDescription(alert, identifiers,logger),
+			displayName: truncate(alert.security_advisory.summary || `Dependabot alert #${alert.number}`, { length: 254 }),
+			description: getDependabotScanningVulnDescription(alert, identifiers, logger),
 			url: alert.html_url,
 			type: "sca",
 			introducedDate: alert.created_at,
@@ -110,7 +130,7 @@ const transformDependabotAlerts = async (
 			identifiers,
 			status: transformGitHubStateToJiraStatus(alert.state?.toLowerCase(), handleUnmappedState),
 			additionalInfo: {
-				content: alert.dependency.manifest_path
+				content: truncate(alert.dependency.manifest_path, { length: 254 })
 			}
 		};
 	});

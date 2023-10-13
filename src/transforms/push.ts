@@ -155,7 +155,7 @@ export const processPush = async (github: GitHubInstallationClient, payload: Pus
 					const message = commitResponse.data.commit?.message;
 
 					// Jira only accepts a max of 10 files for each commit, so don't send all of them
-					const filesToSend = files.slice(0, 10) as GithubCommitFile[];
+					const filesToSend = Array.isArray(files) ? files.slice(0, 10) as GithubCommitFile[] : [];
 
 					// merge commits will have 2 or more parents, depending on how many are in the sequence
 					const isMergeCommit = parents?.length > 1;
@@ -165,12 +165,12 @@ export const processPush = async (github: GitHubInstallationClient, payload: Pus
 						hash: commitSha,
 						message: limitCommitMessage(message),
 						author: getJiraAuthor(author, githubCommitAuthor),
-						authorTimestamp: githubCommitAuthor.date,
+						authorTimestamp: githubCommitAuthor?.date,
 						displayId: commitSha.substring(0, 6),
 						fileCount: files.length, // Send the total count for all files
 						files: compact(filesToSend.map((file) => mapFile(file, repo, sha.id, owner.name))),
 						id: commitSha,
-						issueKeys: sha.issueKeys,
+						issueKeys: sha?.issueKeys || [],
 						url: html_url,
 						updateSequenceId: Date.now(),
 						flags: isMergeCommit ? ["MERGE_COMMIT"] : undefined
@@ -186,7 +186,7 @@ export const processPush = async (github: GitHubInstallationClient, payload: Pus
 		// break the array up into chunks of 400
 		const chunks: JiraCommit[][] = [];
 
-		while (commits.length) {
+		while (commits?.length) {
 			chunks.push(commits.splice(0, 400));
 		}
 

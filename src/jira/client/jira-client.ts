@@ -9,6 +9,7 @@ import { createHashWithSharedSecret } from "utils/encryption";
 import {
 	JiraAssociation,
 	JiraBuildBulkSubmitData,
+	JiraBuild,
 	JiraCommit,
 	JiraDeploymentBulkSubmitData,
 	JiraIssue,
@@ -22,7 +23,7 @@ import { uniq } from "lodash";
 import { getCloudOrServerFromGitHubAppId } from "utils/get-cloud-or-server";
 import { TransformedRepositoryId, transformRepositoryId } from "~/src/transforms/transform-repository-id";
 import { getDeploymentDebugInfo } from "./jira-client-deployment-helper";
-import { processAuditLogsForDevInfoBulkUpdate } from "./jira-client-audit-log-helper";
+import { processAuditLogsForDevInfoBulkUpdate, processAuditLogsForWorkflowSubmit } from "./jira-client-audit-log-helper";
 import { BooleanFlags, booleanFlag } from "~/src/config/feature-flags";
 import { sendAnalytics } from "~/src/util/analytics-client";
 import { AnalyticsEventTypes, AnalyticsTrackEventsEnum, AnalyticsTrackSource } from "~/src/interfaces/common";
@@ -72,7 +73,7 @@ export interface JiraClient {
 		},
 	},
 	workflow: {
-		submit: (data: JiraBuildBulkSubmitData, repositoryId: number, options?: JiraSubmitOptions) => Promise<any>;
+		submit: (data: JiraBuildBulkSubmitData, repositoryId: number, repoFullName: string, options: JiraSubmitOptions) => Promise<any>;
 	},
 	deployment: {
 		submit: (
@@ -382,7 +383,7 @@ export const getJiraClient = async (
 			}
 		},
 		workflow: {
-			submit: async (data: JiraBuildBulkSubmitData, repositoryId: number, options?: JiraSubmitOptions) => {
+			submit: async (data: JiraBuildBulkSubmitData, repositoryId: number, repoFullName: string, options: JiraSubmitOptions) => {
 				updateIssueKeysFor(data.builds, uniq);
 				if (!withinIssueKeyLimit(data.builds)) {
 					logger.warn({
@@ -406,8 +407,17 @@ export const getJiraClient = async (
 					operationType: options?.operationType || "NORMAL"
 				};
 
-				logger?.info({ gitHubProduct }, "Sending builds payload to jira.");
-				return await instance.post("/rest/builds/0.1/bulk", payload);
+				logger.info("Posting backfill workflow info for " , { repositoryId, repoFullName, data });
+				const response =  await instance.post("/rest/builds/0.1/bulk", payload);
+				const responseData = {
+					status: response.status,
+					data:response.data
+				};
+				const reqBuildDataArray: JiraBuild[] = data?.builds || [];
+				if (await booleanFlag(BooleanFlags.USE_DYNAMODB_TO_PERSIST_AUDIT_LOG, jiraHost)) {
+					processAuditLogsForWorkflowSubmit({ reqBuildDataArray, repoFullName, response:responseData, options, logger });
+				}
+				return response;
 			}
 		},
 		deployment: {

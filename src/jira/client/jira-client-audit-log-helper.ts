@@ -2,9 +2,13 @@ import { AuditInfo, saveAuditLog } from "../../services/audit-log-service";
 import { isArray, isObject } from "lodash";
 import {
 	JiraBuild,
+	JiraDeployment,
 	JiraSubmitOptions
 } from "interfaces/jira";
+import { findIssueKeyAssociation } from "./jira-client-issue-key-helper";
 import Logger from "bunyan";
+
+type Response = { status: number, data: any };
 
 const getAuditInfo = ({
 	acceptedGithubEntities,
@@ -103,6 +107,61 @@ export const processBatchedBulkUpdateResp = ({
 	}
 };
 
+export const processDeploySubmitResp = ({
+	reqDeploymentDataArray,
+	response,
+	repoFullName,
+	options,
+	logger
+}): {
+	isSuccess: boolean;
+	auditInfo?: Array<AuditInfo>;
+} => {
+	try {
+		const isSuccess = response?.status === 202;
+		const acceptedDeployments =
+			response?.data && response?.data?.acceptedDeployments;
+		const hasAcceptedDeployments =
+			isArray(acceptedDeployments) &&
+			acceptedDeployments.length > 0;
+		const auditInfo: Array<AuditInfo> = [];
+		if (isSuccess && hasAcceptedDeployments) {
+			reqDeploymentDataArray.forEach((reqDeploymentData) => {
+				const reqDeploymentSqNo = reqDeploymentData.deploymentSequenceNumber;
+				const createdAt = new Date();
+				const acceptedDeploymentFound = acceptedDeployments.some(acceptedDeployment => acceptedDeployment?.deploymentSequenceNumber?.toString() === reqDeploymentSqNo?.toString());
+				if (acceptedDeploymentFound) {
+					const issueKeys = findIssueKeyAssociation(reqDeploymentData)?.values;
+					if (issueKeys){
+						issueKeys.map((issueKey) => {
+							const obj: AuditInfo = {
+								createdAt,
+								entityId: `${repoFullName}_${reqDeploymentSqNo.toString()}`,
+								entityType: "deployments",
+								issueKey,
+								subscriptionId: options.subscriptionId,
+								source: options.auditLogsource || "WEBHOOK",
+								entityAction: reqDeploymentData.state
+							};
+							if (obj.subscriptionId && obj.entityId) {
+								auditInfo.push(obj);
+							}
+						});
+					}
+				}
+			});
+			return { isSuccess: true, auditInfo };
+		}
+		return { isSuccess: false };
+	} catch (error) {
+		logger.error(
+			{ error },
+			"Failed to process batched deployment update api response for audit log"
+		);
+		return { isSuccess: false };
+	}
+};
+
 export const processWorkflowSubmitResp = ({
 	reqBuildDataArray,
 	repoFullName,
@@ -112,7 +171,7 @@ export const processWorkflowSubmitResp = ({
 }: {
 	reqBuildDataArray: JiraBuild[],
 	repoFullName: string,
-	response: { status: number, data: any },
+	response: Response,
 	options: JiraSubmitOptions,
 	logger: Logger
 }): {
@@ -145,9 +204,7 @@ export const processWorkflowSubmitResp = ({
 							source: options.auditLogsource || "WEBHOOK",
 							entityAction: (reqBuildData.state || "").toUpperCase()
 						};
-						if (obj.subscriptionId && obj.entityId) {
-							auditInfo.push(obj);
-						}
+						auditInfo.push(obj);
 					});
 				}
 			});
@@ -186,7 +243,7 @@ export const processAuditLogsForWorkflowSubmit = (
 	{ reqBuildDataArray, repoFullName, response, options, logger }: {
 		reqBuildDataArray: JiraBuild[],
 		repoFullName: string,
-		response: { status: number, data: any },
+		response: Response,
 		options: JiraSubmitOptions,
 		logger: Logger
 	}
@@ -214,5 +271,39 @@ export const processAuditLogsForWorkflowSubmit = (
 		}
 	} catch (error) {
 		logger.error({ error }, "Failed to log DD build update api call success");
+	}
+};
+
+export const processAuditLogsForDeploymentSubmit = (
+	{ reqDeploymentDataArray, response, options, repoFullName, logger }: {
+		reqDeploymentDataArray: JiraDeployment[],
+		repoFullName: string,
+		response: Response,
+		options: any,
+		logger: Logger
+	}
+) => {
+	try {
+
+		if (!options) {
+			logger.debug("Skip sending to audit log as options are undefined");
+		}
+
+		const { isSuccess, auditInfo } = processDeploySubmitResp({
+			reqDeploymentDataArray,
+			response,
+			repoFullName,
+			options: options,
+			logger
+		});
+		if (isSuccess) {
+			auditInfo?.map(async (auditInf) => {
+				await saveAuditLog(auditInf, logger);
+			});
+		} else {
+			logger.error("the DD deployment update api call failed!");
+		}
+	} catch (error) {
+		logger.error({ error }, "Failed to log DD deployment update api call success");
 	}
 };

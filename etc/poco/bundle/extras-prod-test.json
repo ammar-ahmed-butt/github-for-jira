@@ -41,8 +41,18 @@
 			"allowed": true
 		},
 		{
-			"name": "Allow Prod Basic Check Critical Pollinator Test to call Get Audit Log endpoints",
+			"name": "Allow Prod Basic Check Critical Pollinator Test to call Get Audit Log endpoints for cloud",
 			"path": "/api/audit-log/subscription/255625",
+			"method": "GET",
+			"mechanism": "asap",
+			"principals": [
+				"pollinator-check/d4f03d07-12fe-4a69-9d68-c1841066772e"
+			],
+			"allowed": true
+		},
+		{
+			"name": "Allow Prod Basic Check Critical Pollinator Test to call Get Audit Log endpoints for ghe",
+			"path": "/api/audit-log/subscription/256125",
 			"method": "GET",
 			"mechanism": "asap",
 			"principals": [
@@ -87,6 +97,16 @@
 			"mechanism": "asap",
 			"principals": [
 				"pollinator-check/9d09aa37-c3e7-4b85-b86d-4d299ad54954"
+			],
+			"allowed": true
+		},
+		{
+			"name": "Allow pollinator GHE basic critical test to call Delete Installation endpoints",
+			"path": "/api/deleteInstallation/510/https%3A%2F%2Ffusion-arc-pollinator-staging-app.atlassian.net/github-app-id/123",
+			"method": "DELETE",
+			"mechanism": "asap",
+			"principals": [
+				"pollinator-check/42166522-a00b-4c93-858c-bda16bbf7aba"
 			],
 			"allowed": true
 		},
@@ -137,6 +157,16 @@
 			"mechanism": "asap",
 			"principals": [
 				"pollinator-check/9d09aa37-c3e7-4b85-b86d-4d299ad54954"
+			],
+			"allowed": false
+		},
+		{
+			"name": "Not allow Pollinator GHE basic critical tests to call other Admin endpoints",
+			"path": "/api/jira/13453453/verify",
+			"method": "DELETE",
+			"mechanism": "asap",
+			"principals": [
+				"pollinator-check/42166522-a00b-4c93-858c-bda16bbf7aba"
 			],
 			"allowed": false
 		},
